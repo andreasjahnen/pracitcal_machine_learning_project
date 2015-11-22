@@ -1,0 +1,81 @@
+---
+title: "Course Project: Predicting correct barbell lifts based on activity tracker data"
+author: "Andreas Jahnen"
+date: "November 18, 2015"
+output: html_document
+---
+
+# Abstract
+
+Activity trackers are an inexpensive method to track the movement of people. The data 
+is used in application fields like fitness, health and track behavoir. In this course project, the activity data of 6 individuals is used to classify barbell lifts into several categories of how the
+exercise was carried out. Those categories are: "exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E)" [1]. The used WLE dataset [2] is available online [1] under the Creative Commons license (CC BY-SA) license and free to use. 
+We present in this work a random forest Machine Learning algorithm that is able to predict new data into the classes A-E, including its cross valiation error. You can see that the proposed machine learning algrithm is a excellent method to predict those execution classes. 
+
+## 1. Data loading and preprocessing
+
+As the initial step in our analysis, we load the training data and 
+
+```{r "Data Loading and pre-processing"}
+# 1. load the data:
+setwd("/home/jahnen/Dropbox/Learning/Data Science Degree/Practical Machine Learning/week 3/assignment/")
+data <- read.csv("pml-training.csv")
+
+# 2. Remove factor variables and variables with a lot of NAs:
+drops <- NULL # which columns to remove?
+for(i in names(data)){
+    if(is.factor(data[, i])){
+        drops <- append(drops, i)
+    }
+}
+# do not remove the outcome variable
+drops <- drops[drops != "classe"]
+
+# remove all variables with more than 15000 NA values:
+drops <- append(drops, colnames(data)[colSums(is.na(data)) > 15000])
+
+# now remove columns in "drops"
+preprocessedData <- data[,!(names(data) %in% drops)]
+
+```
+
+## 2. Model building and validation
+
+After the preprocessing we are ready to build a ramdom forest machine learning algorithm. I was experimenting with the data a bit (not shown) and a linear model and a tree model was not able to solve this problem in a good way. I therefore decided to use a random forest machine learning algorithm. First, I I used the "ramdomForest" package, as it runs much faster as the caret "rf" method, but resulted in a overfitted model (accurancy = 100 %). I therefore used the caret train function with a PCA preprocessing to avoid overfitting. 
+
+I then made the cross validation based on the validaiton data set, that I created in the beginning:
+
+```{r "modelbuilding", cache=TRUE}
+library(caret)
+
+set.seed(12345) # for reprodutive results
+
+# 3. Build the model with a reduced training set (and keep data for validation):
+inTrain <- createDataPartition(preprocessedData$classe, p = .7, list = FALSE)
+trainData <- preprocessedData[inTrain,]
+validationData <- preprocessedData[-inTrain,]
+
+# make a random forest model with pca preprocessing: 
+barbellModel <- train(classe ~ ., data = trainData, method = "rf", preProcess = "pca")
+
+# 4.1 check the model based on the validation data (part of training set):
+predValidation <- predict(barbellModel, newdata = validationData)
+confusionMatrix(validationData$classe, predValidation)
+
+# How many errors do we have?
+table(predValidation == validationData$classe)
+
+# plot the model:
+plot(barbellModel$finalModel)
+
+```
+
+## 4. Conclusions
+
+The developed ramdom forest can predict the validation data quite accurancy. We assume that new data will as well be well predicted.
+
+## References:
+
+**[1]** WLE Dataset Homepage: http://groupware.les.inf.puc-rio.br/har, Accessed online: 22.11.2015
+
+**[2]** Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H.: **Qualitative Activity Recognition of Weight Lifting Exercises.** __Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13)__. Stuttgart, Germany: ACM SIGCHI, 2013.
